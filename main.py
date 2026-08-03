@@ -1,243 +1,215 @@
-"""Application entry point and orchestration loop for Sherlock.
+"""Application entry point and orchestration loop for Sherlock (Mini Jarvis).
 
 Acts as the central coordinator initializing inputs, audio queues,
-the cognitive brain (LLM client), the tool registry, and the TTS feedback.
+the cognitive brain (Gemini GenAI ReAct Engine), tools, and TTS feedback.
 """
 
-import sys
 import io
 import os
 import re
-# Third-party audio and voice synthesis dependencies
+import sys
+import threading
+from typing import Dict, Any, Callable
+
 import pygame
+from google import genai
+from google.genai import types
 from elevenlabs.client import ElevenLabs
 
 import config
 from utils.logger import get_logger
 
-# Import core modules
+# Import core hardware & voice modules
 from core.audio_recorder import AudioRecorder
-from core.wakeword import WakeWordDetector
 from core.stt import SpeechToText
 from core.tts import TextToSpeech
 
-# Import brain modules
-from brain.llm_client import LLMClient
-from brain.prompt_template import ConversationMemory, SHERLOCK_SYSTEM_PROMPT
+# Import brain & prompt templates
+from brain.prompt_template import SHERLOCK_SYSTEM_PROMPT
 
-# Import tools modules
-from tools.registry import ToolRegistry
+# Import baseline system tools
 from tools.weather import get_weather
 from tools.timer import set_timer
-from tools.app_opener import launch_app as open_app
+from tools.app_opener import open_app
 
 logger = get_logger(__name__)
 
-# Initialize pygame mixer safely
-try:
-    pygame.mixer.init()
-    pygame_mixer_initialized = True
-    logger.info("Pygame mixer initialized successfully.")
-except Exception as e:
-    logger.warning(f"Could not initialize pygame mixer: {e}. Audio playback will be skipped.")
-    pygame_mixer_initialized = False
+# Register baseline tool mapping
+TOOLS_LIST = [get_weather, set_timer, open_app]
+TOOL_MAP: Dict[str, Callable] = {
+    "get_weather": get_weather,
+    "set_timer": set_timer,
+    "open_app": open_app,
+}
 
-# Initialize ElevenLabs client
-eleven_client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY", config.ELEVENLABS_API_KEY))
+# Global TTS helper delegate
+_tts_engine = None
+
+def get_tts_engine() -> TextToSpeech:
+    """Returns the singleton TextToSpeech instance."""
+    global _tts_engine
+    if _tts_engine is None:
+        _tts_engine = TextToSpeech()
+    return _tts_engine
+
 
 def speak_text(text: str):
-    """Converts the given text to speech using ElevenLabs and plays it via Pygame.
+    """Converts response text to speech and plays audio using modular TTS engine."""
+    get_tts_engine().speak(text)
+
+
+def create_chat_session(client: genai.Client, model_name: str):
+    """Creates a Gemini chat session with native function calling and low temperature.
 
     Args:
-        text (str): The text message to speak.
+        client (genai.Client): Initialized GenAI client instance.
+        model_name (str): Gemini model identifier (e.g. 'gemini-2.5-flash').
+
+    Returns:
+        Chat: GenAI chat session object.
     """
-    if not text or not text.strip():
-        return
-
-    # Clean up response for speakability (remove formatting characters)
-    clean_text = re.sub(r"[*_`#\-\[\]]", "", text)
-    
-    # Check if API key is present
-    api_key = os.getenv("ELEVENLABS_API_KEY", config.ELEVENLABS_API_KEY)
-    if not api_key:
-        logger.warning(f"[TTS Bypass] (No ELEVENLABS_API_KEY set) Sherlock would say: '{clean_text}'")
-        return
-
-    if not pygame_mixer_initialized:
-        logger.warning(f"[TTS Bypass] (Pygame mixer not active) Sherlock would say: '{clean_text}'")
-        return
-
-    try:
-        logger.info(f"Generating voice for: '{clean_text}'")
-        # Generate MP3 stream
-        audio_generator = eleven_client.generate(
-            text=clean_text,
-            voice="Rachel",
-            model="eleven_turbo_v2_5"
+    return client.chats.create(
+        model=model_name,
+        config=types.GenerateContentConfig(
+            system_instruction=SHERLOCK_SYSTEM_PROMPT,
+            temperature=0.2,  # Low variance for deterministic tool routing (Toolformer)
+            tools=TOOLS_LIST,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
         )
-        audio_bytes = b"".join(audio_generator)
-        sound_buffer = io.BytesIO(audio_bytes)
+    )
 
-        # Play via Pygame
-        pygame.mixer.music.load(sound_buffer)
-        pygame.mixer.music.play()
-        
-        # Busy-wait loop until audio completes
-        while pygame.mixer.music.get_busy():
-            pygame.time.Clock().tick(10)
-            
-    except Exception as e:
-        print(f"⚠️ [TTS Error]: {e}")
 
-def parse_action(text: str):
-    """Parses 'Action: [tool_name]' and 'Action Input: [arg]' from LLM output.
+def run_react_loop(chat, user_query: str) -> str:
+    """Executes the ReAct (Reasoning + Acting) decision engine loop for a user query.
+
+    Evaluates user input, intercepts function calls, logs arguments and observations,
+    and feeds function responses back to Gemini until a final text response is synthesized.
 
     Args:
-        text (str): Raw LLM response.
+        chat: Active GenAI chat session.
+        user_query (str): Input text from user or STT transcription.
 
     Returns:
-        tuple[str, str] | None: Tool name and input if found, otherwise None.
+        str: Final natural language response text.
     """
-    action_match = re.search(r"Action:\s*([a-zA-Z0-9_-]+)", text)
-    action_input_match = re.search(r"Action Input:\s*(.+)", text)
-    if action_match and action_input_match:
-        tool_name = action_match.group(1).strip()
-        tool_arg = action_input_match.group(1).strip().strip('"').strip("'")
-        return tool_name, tool_arg
-    return None
+    logger.info(f"Processing user query: '{user_query}'")
+    response = chat.send_message(user_query)
 
-def parse_final_answer(text: str):
-    """Parses 'Final Answer: [response]' from LLM output.
-
-    Args:
-        text (str): Raw LLM response.
-
-    Returns:
-        str | None: The parsed final answer text if found, otherwise None.
-    """
-    final_match = re.search(r"Final Answer:\s*(.+)", text, re.DOTALL)
-    if final_match:
-        return final_match.group(1).strip()
-    return None
-
-def run_react_loop(user_query: str, brain: LLMClient, memory: ConversationMemory, tools: ToolRegistry) -> str:
-    """Executes the ReAct reasoning loop (Thought -> Action -> Observation -> Final Answer).
-
-    Args:
-        user_query (str): The initial query from the user.
-        brain (LLMClient): The LLM client wrapper.
-        memory (ConversationMemory): Conversational history memory.
-        tools (ToolRegistry): Registered system tools.
-
-    Returns:
-        str: The final natural language response from the agent.
-    """
-    active_prompt = f"User Query: {user_query}"
+    step = 0
     max_steps = 5
 
-    for step in range(max_steps):
-        logger.info(f"ReAct Loop Step {step + 1}...")
-        response_text = brain.generate_response(
-            user_query=active_prompt,
-            system_instruction=SHERLOCK_SYSTEM_PROMPT,
-            history=memory.get_messages()
-        )
-        
-        # Check for tool call
-        action_info = parse_action(response_text)
-        if action_info:
-            tool_name, tool_arg = action_info
-            print(f"🤖 [Thought]: System decides to execute tool '{tool_name}' with argument '{tool_arg}'")
-            
-            # Execute tool
-            observation = tools.execute(tool_name, tool_arg)
-            print(f"🔍 [Observation]: {observation}")
-            
-            # Append reasoning path and observation back to the prompt context
-            active_prompt += f"\n{response_text}\nObservation: {observation}"
-        else:
-            # Check for final answer
-            final_answer = parse_final_answer(response_text)
-            if final_answer:
-                return final_answer
-            
-            # Fallback if no specific Final Answer token is output, but no action was requested either
-            if "Action:" not in response_text:
-                return response_text.strip()
-                
-            active_prompt += f"\n{response_text}\nObservation: Please specify a valid tool name or provide your Final Answer."
+    # ReAct Loop: Intercept function calls and send observations back
+    while response.function_calls and step < max_steps:
+        step += 1
+        for call in response.function_calls:
+            func_name = call.name
+            func_args = call.args or {}
 
-    return "I apologize, but I could not resolve that query within my reasoning limit."
+            # Log ReAct Step: Tool requested & parameters passed
+            logger.info(f"🤖 [ReAct Step {step}] Tool requested: '{func_name}' with args: {func_args}")
+            print(f"🤖 [ReAct Step {step}] Tool: '{func_name}' | Args: {func_args}")
+
+            # Execute tool locally
+            tool_fn = TOOL_MAP.get(func_name)
+            if tool_fn:
+                try:
+                    observation = tool_fn(**func_args)
+                except Exception as e:
+                    logger.error(f"Error executing {func_name}: {e}")
+                    observation = f"Error executing tool {func_name}: {e}"
+            else:
+                logger.error(f"Tool '{func_name}' requested but not registered in TOOL_MAP.")
+                observation = f"Error: Tool '{func_name}' is not registered."
+
+            # Log ReAct Step: Observation returned
+            logger.info(f"🔍 [ReAct Step {step}] Observation returned: {observation}")
+            print(f"🔍 [ReAct Step {step}] Observation: {observation}")
+
+            # Feed observation back to Gemini chat session
+            response_part = types.Part.from_function_response(
+                name=func_name,
+                response={"result": observation}
+            )
+            response = chat.send_message(response_part)
+
+    final_text = response.text or "Request completed."
+    logger.info(f"Synthesized Response: '{final_text}'")
+    return final_text
+
 
 def main():
-    """Initializes and runs the main orchestrator loop."""
-    logger.info("Initializing Sherlock Voice Assistant...")
+    """Initializes Sherlock CLI assistant and runs the main ReAct interaction loop."""
+    logger.info("Initializing Sherlock Voice Assistant (Mini Jarvis)...")
 
-    # Instantiate skeletons and modules
-    try:
-        recorder = AudioRecorder()
-        wakeword = WakeWordDetector()
-        stt = SpeechToText()
-        tts = TextToSpeech()  # Modular placeholder
-        brain = LLMClient()
-        memory = ConversationMemory()
-        
-        # Initialize and register tools
-        tools = ToolRegistry()
-        
-        @tools.register("get_weather", "Retrieves current weather condition for a city. Args: location (str)")
-        def tool_weather(location: str) -> str:
-            return get_weather(location)
-            
-        @tools.register("set_timer", "Sets a background countdown timer for N seconds. Args: seconds (int)")
-        def tool_timer(seconds: int) -> str:
-            return set_timer(seconds)
-            
-        @tools.register("open_app", "Opens/launches a local Windows application. Args: app_name (str)")
-        def tool_open_app(app_name: str) -> str:
-            return open_app(app_name)
-
-        logger.info("All modules imported and initialized successfully.")
-    except Exception as e:
-        logger.critical(f"Failed to initialize Sherlock components: {e}", exc_info=True)
+    gemini_key = os.getenv("GEMINI_API_KEY", config.GEMINI_API_KEY)
+    if not gemini_key:
+        logger.critical("GEMINI_API_KEY is not configured in environment or config.py.")
+        print("❌ Error: GEMINI_API_KEY is missing. Please add it to your .env file.")
         sys.exit(1)
+
+    model_name = getattr(config, "GEMINI_MODEL", "gemini-2.5-flash")
+    if not model_name or "1.5" in model_name:
+        model_name = "gemini-2.5-flash"
+
+    try:
+        client = genai.Client(api_key=gemini_key)
+        chat_session = create_chat_session(client, model_name=model_name)
+        logger.info(f"Gemini GenAI client initialized with model '{model_name}'.")
+    except Exception as e:
+        logger.critical(f"Failed to initialize Gemini GenAI client: {e}", exc_info=True)
+        sys.exit(1)
+
+    # Initialize audio hardware, STT, and TTS modules
+    recorder = AudioRecorder()
+    stt = SpeechToText()
+    tts = get_tts_engine()
 
     print("\n==================================================")
     print("         Sherlock Voice Assistant (Mini Jarvis)")
-    print("              Status: ACTIVE (ReAct Loop)")
+    print("           Brain: Gemini ReAct Engine (2.5-Flash)")
     print("==================================================")
-    print(f"LLM Provider:  {config.DEFAULT_LLM_PROVIDER}")
+    print(f"LLM Provider:  Gemini GenAI ({model_name})")
     print(f"TTS Provider:  {config.TTS_PROVIDER} (Pygame + ElevenLabs)")
-    print(f"STT Model:     {config.STT_MODEL_SIZE} ({config.STT_DEVICE})")
+    print(f"STT Engine:    faster-whisper ({config.STT_MODEL_SIZE})")
+    print("Tools Loaded:  get_weather, set_timer, open_app")
     print("==================================================")
-    print("Sherlock is ready. Start typing below (type 'exit' to quit).")
+    print("Sherlock is ready. Type your prompt or enter 'r' / 'voice' for Push-to-Talk voice input (type 'exit' to quit).")
     print("==================================================\n")
 
-    # CLI Loop
+    # Interactive CLI Loop
     while True:
         try:
-            user_input = input("You: ").strip()
+            user_input = input("You (text or 'r' for voice): ").strip()
             if not user_input:
                 continue
-                
-            if user_input.lower() in ["exit", "quit", "bye"]:
+
+            # Push-to-Talk Voice Input mode
+            if user_input.lower() in ["r", "rec", "voice", "speak"]:
+                try:
+                    audio_path = recorder.record_until_keypress()
+                    user_input = stt.transcribe(audio_path).strip()
+                    if not user_input:
+                        print("Sherlock: I didn't catch any speech. Please try again.")
+                        continue
+                    print(f"You (Voice STT): {user_input}")
+                except Exception as rec_err:
+                    logger.error(f"Voice recording / STT failed: {rec_err}")
+                    print(f"⚠️ [STT Error]: {rec_err}")
+                    continue
+
+            # Exit command
+            if user_input.lower() in ["exit", "quit", "bye", "goodbye"]:
                 goodbye_msg = "Goodbye. Have a pleasant day."
                 print(f"Sherlock: {goodbye_msg}")
                 speak_text(goodbye_msg)
                 break
 
-            # Resolve query using ReAct reasoning loop
-            final_response = run_react_loop(user_input, brain, memory, tools)
+            # Execute ReAct decision engine
+            final_response = run_react_loop(chat_session, user_input)
             
-            # Print response
+            # Print answer & trigger TTS playback
             print(f"Sherlock: {final_response}")
-            
-            # Text-To-Speech playback
             speak_text(final_response)
-
-            # Record conversation history
-            memory.add_message("user", user_input)
-            memory.add_message("assistant", final_response)
 
         except KeyboardInterrupt:
             goodbye_msg = "Goodbye. Have a pleasant day."
@@ -248,5 +220,7 @@ def main():
             logger.error(f"Error in CLI interaction loop: {e}", exc_info=True)
             print(f"⚠️ [System Error]: {e}")
 
+
 if __name__ == "__main__":
     main()
+

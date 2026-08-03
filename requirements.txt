@@ -1,20 +1,22 @@
-# Core dependencies
+# Core & Environment dependencies
 python-dotenv
+requests
+numpy
+scipy
+pygame
 
-# Speech-to-Text (STT) - Phase 4
-faster-whisper
-
-# Wake Word Detection - Phase 5
-pvporcupine
-
-# LLM Clients & Brain (Phase 1 & 2)
+# LLM Brain & Function Calling (Phase 1)
+google-genai
 openai
 anthropic
-google-generativeai
 
-# Utilities / APIs
-requests
-
-# Text-to-Speech (TTS) - Phase 3
+# Text-to-Speech (TTS) - Phase 2
 elevenlabs
-# Add other TTS packages if needed, e.g., piper-tts
+
+# Speech-to-Text (STT) & Audio Recording - Phase 3
+sounddevice
+faster-whisper
+
+# Wake Word Detection - Phase 4
+pvporcupine
+

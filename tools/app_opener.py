@@ -18,18 +18,17 @@ WINDOWS_APPS = {
     "edge": "msedge.exe",
 }
 
-def launch_app(app_name: str) -> str:
-    """Launches a localized app based on string mapping or direct execution.
+def open_app(app_name: str) -> str:
+    """Opens local applications (e.g., 'notepad', 'calculator', 'chrome', 'edge') via OS subprocess calls.
 
     Args:
-        app_name (str): Friendly name of the app to launch (e.g., 'notepad').
+        app_name (str): Friendly name of the app to launch (e.g., 'notepad', 'calculator', 'chrome').
 
     Returns:
-        str: Result confirmation or diagnostic log.
+        str: Result confirmation or diagnostic error log.
     """
-    logger.info(f"launch_app tool invoked for: '{app_name}'")
+    logger.info(f"open_app tool invoked for: '{app_name}'")
     
-    # Sherlock runs on Windows as per environment spec
     if sys.platform != "win32":
         logger.warning(f"Platform is '{sys.platform}'. Local app opening is configured for win32.")
         return f"Cannot open '{app_name}': OS platform is not Windows."
@@ -45,3 +44,6 @@ def launch_app(app_name: str) -> str:
     except Exception as e:
         logger.error(f"Failed to launch '{app_name}' using command '{target_cmd}': {e}")
         return f"Failed to open '{app_name}'. Error details: {str(e)}"
+
+# Alias for backward compatibility
+launch_app = open_app
