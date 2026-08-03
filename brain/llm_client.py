@@ -16,13 +16,22 @@ class LLMClient:
         """Initializes the LLM client configuration."""
         logger.info("Initializing LLMClient...")
         self.provider = config.DEFAULT_LLM_PROVIDER
+        self.client = None
         self._initialize_provider()
 
     def _initialize_provider(self):
         """Sets up specific API clients depending on configuration."""
         if self.provider == "gemini":
             logger.info("Using Gemini API provider.")
-            # TODO: Initialize google-generativeai client
+            if not config.GEMINI_API_KEY:
+                logger.warning("GEMINI_API_KEY is not configured in settings.")
+                return
+            try:
+                from google import genai
+                self.client = genai.Client(api_key=config.GEMINI_API_KEY)
+                logger.info("Successfully initialized Gemini GenAI Client.")
+            except Exception as e:
+                logger.error(f"Failed to initialize Gemini client: {e}")
         elif self.provider == "openai":
             logger.info("Using OpenAI API provider.")
             # TODO: Initialize openai client
@@ -56,8 +65,40 @@ class LLMClient:
         return "I apologize, but I could not compute a response."
 
     def _query_gemini(self, query: str, system: str, history: list) -> str:
-        # TODO: Implement Gemini generation API call
-        return "[Gemini Stub] Understood, how may I assist you?"
+        if not self.client:
+            logger.warning("Gemini client not initialized. Querying in stub mode.")
+            return "[Gemini Stub] Understood, how may I assist you?"
+        try:
+            from google.genai import types
+            
+            # Format chat history
+            contents = []
+            if history:
+                for turn in history:
+                    role = "user" if turn["role"] == "user" else "model"
+                    contents.append(types.Content(
+                        role=role,
+                        parts=[types.Part.from_text(text=turn["content"])]
+                    ))
+            
+            # Append current query
+            contents.append(types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=query)]
+            ))
+
+            response = self.client.models.generate_content(
+                model=config.GEMINI_MODEL,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=system,
+                    temperature=config.TEMPERATURE
+                )
+            )
+            return response.text
+        except Exception as e:
+            logger.error(f"Gemini API error: {e}", exc_info=True)
+            return f"Error querying Gemini API: {str(e)}"
 
     def _query_openai(self, query: str, system: str, history: list) -> str:
         # TODO: Implement OpenAI generation API call

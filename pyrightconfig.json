@@ -1,0 +1,8 @@
+{
+  "venvPath": ".",
+  "venv": "lock",
+  "extraPaths": [
+    "./lock/Lib/site-packages",
+    "d:/Work/Sherlock/Code/lock/Lib/site-packages"
+  ]
+}
