@@ -4,7 +4,7 @@ Pipeline Architecture:
   WakeWordDetector (openWakeWord "sherlock")
   -> AudioRecorder (Low-Latency VAD 0.9s timeout)
   -> SpeechToText (faster-whisper)
-  -> Gemini GenAI ReAct Brain (2.5-Flash + Function Calling)
+  -> Gemini GenAI ReAct Brain (2.5-Flash + Memory & Function Calling)
   -> TextToSpeech Engine (ElevenLabs / Pygame)
 """
 
@@ -24,8 +24,9 @@ from core.audio_recorder import AudioRecorder
 from core.stt import SpeechToText
 from core.tts import TextToSpeech
 
-# Import brain prompt template
-from brain.prompt_template import SHERLOCK_SYSTEM_PROMPT
+# Import brain modules (memory & prompt template)
+from brain.memory import MemoryManager
+from brain.prompt_template import get_system_instruction
 
 # Import baseline system tools
 from tools.weather import get_weather
@@ -59,20 +60,22 @@ def speak_text(text: str):
     get_tts_engine().speak(text)
 
 
-def create_chat_session(client: genai.Client, model_name: str):
-    """Creates a Gemini chat session with native function calling and low temperature.
+def create_chat_session(client: genai.Client, model_name: str, facts: dict | None = None):
+    """Creates a Gemini chat session hydrated with persona rules and long-term user facts.
 
     Args:
         client (genai.Client): Initialized GenAI client instance.
         model_name (str): Gemini model identifier (e.g. 'gemini-2.5-flash').
+        facts (dict | None): Optional dictionary of long-term user facts.
 
     Returns:
         Chat: GenAI chat session object.
     """
+    system_instruction = get_system_instruction(facts)
     return client.chats.create(
         model=model_name,
         config=types.GenerateContentConfig(
-            system_instruction=SHERLOCK_SYSTEM_PROMPT,
+            system_instruction=system_instruction,
             temperature=0.2,  # Low variance for deterministic tool routing
             tools=TOOLS_LIST,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
@@ -152,15 +155,20 @@ def main():
     if not model_name or "1.5" in model_name:
         model_name = "gemini-2.5-flash"
 
+    # Instantiate SQLite Memory Manager and fetch long-term user facts
+    memory = MemoryManager()
+    user_facts = memory.get_all_facts()
+    logger.info(f"Loaded {len(user_facts)} long-term user facts from memory.")
+
     try:
         client = genai.Client(api_key=gemini_key)
-        chat_session = create_chat_session(client, model_name=model_name)
+        chat_session = create_chat_session(client, model_name=model_name, facts=user_facts)
         logger.info(f"Gemini GenAI client initialized with model '{model_name}'.")
     except Exception as e:
         logger.critical(f"Failed to initialize Gemini GenAI client: {e}", exc_info=True)
         sys.exit(1)
 
-    # 1. Instantiate Pipeline Modules
+    # 1. Instantiate Pipeline Hardware & Speech Modules
     logger.info("Instantiating pipeline hardware & speech modules...")
     wake_word_detector = WakeWordDetector(target_word="sherlock", threshold=0.5)
     recorder = AudioRecorder(sample_rate=16000)
@@ -175,6 +183,7 @@ def main():
     print(f"VAD Timeout:  0.9s trailing silence cutoff")
     print(f"STT Engine:   faster-whisper ({config.STT_MODEL_SIZE})")
     print(f"Brain LLM:    Gemini GenAI ({model_name})")
+    print(f"Memory DB:    data/memory.db ({len(user_facts)} facts loaded)")
     print(f"TTS Provider: {config.TTS_PROVIDER} (ElevenLabs / Pygame)")
     print("==================================================")
     print("Sherlock is ready and listening for 'Sherlock' (Press Ctrl+C to stop)...")
@@ -209,13 +218,14 @@ def main():
                 print("sleeping... Listening for 'Sherlock'...\n")
                 continue
 
-            # f. Print transcribed text
+            # f. Print transcribed text & record user turn
             if not user_text:
                 print("Sherlock: I didn't catch any words. Returning to sleep.")
                 print("sleeping... Listening for 'Sherlock'...\n")
                 continue
 
             print(f"You (Voice): {user_text}")
+            memory.add_turn("user", user_text)
 
             # g. Pass user_text into Gemini 2.5 ReAct tool loop
             try:
@@ -224,7 +234,8 @@ def main():
                 logger.error(f"ReAct decision engine error: {brain_err}")
                 final_response = "I encountered an issue processing your request."
 
-            # h. Pass Gemini's final text response to TTS engine
+            # h. Record assistant turn & pass Gemini's final text response to TTS engine
+            memory.add_turn("assistant", final_response)
             print(f"Sherlock: {final_response}")
             speak_text(final_response)
 
