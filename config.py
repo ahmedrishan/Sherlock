@@ -39,7 +39,9 @@ AUDIO_SAMPLE_RATE = int(os.getenv("AUDIO_SAMPLE_RATE", "16000"))
 AUDIO_CHANNELS = int(os.getenv("AUDIO_CHANNELS", "1"))
 AUDIO_CHUNK_SIZE = int(os.getenv("AUDIO_CHUNK_SIZE", "1024"))
 
-# Wake Word Settings (Picovoice Porcupine)
+# Wake Word Settings (openWakeWord)
+WAKE_WORD_MODEL = os.getenv("WAKE_WORD_MODEL", "sherlock")
+WAKE_WORD_THRESHOLD = float(os.getenv("WAKE_WORD_THRESHOLD", "0.5"))
 WAKE_WORD_MODEL_PATH = os.getenv("WAKE_WORD_MODEL_PATH", "")
 
 # Speech to Text Settings (faster-whisper)

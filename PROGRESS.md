@@ -18,7 +18,7 @@
 | **Phase 1** | **Text-Only Brain with LLM Function Calling** | **[Completed]** | Native `google-genai` SDK integration for Gemini (`gemini-2.5-flash`). Interleaved ReAct decision engine loop (`user_query` ➔ `response.function_calls` ➔ local tool execution ➔ `types.Part.from_function_response` observation feedback) in [main.py](file:///d:/Work/Sherlock/Code/main.py). |
 | **Phase 2** | **Text-to-Speech Output (TTS)** | **[Completed]** | Production `TextToSpeech` engine in [core/tts.py](file:///d:/Work/Sherlock/Code/core/tts.py) with ElevenLabs low-latency model (`eleven_turbo_v2_5`), in-memory `io.BytesIO` buffer playback via `pygame.mixer`, graceful `[TTS Bypass]` logging fallback, and local Piper/VITS abstraction. |
 | **Phase 3** | **Speech-to-Text Input (Push-to-Talk)** | **[Completed]** | Production-ready Push-to-Talk audio recording via `sounddevice` in [core/audio_recorder.py](file:///d:/Work/Sherlock/Code/core/audio_recorder.py) paired with local `faster-whisper` transcription in [core/stt.py](file:///d:/Work/Sherlock/Code/core/stt.py) integrated into [main.py](file:///d:/Work/Sherlock/Code/main.py). |
-| **Phase 4** | **Always-Listening Wake Word Detection** | **[In Progress]** | Skeleton established in [core/wakeword.py](file:///d:/Work/Sherlock/Code/core/wakeword.py) targeting Picovoice Porcupine. Hardware audio stream listener pending `PICOVOICE_ACCESS_KEY` and streaming buffer hookup. |
+| **Phase 4** | **Always-Listening Wake Word Detection** | **[Completed]** | Production openWakeWord engine in [core/wake_word.py](file:///d:/Work/Sherlock/Code/core/wake_word.py) ("sherlock"), low-resource 16kHz audio stream listener, and integrated low-latency VAD audio recorder in [core/audio_recorder.py](file:///d:/Work/Sherlock/Code/core/audio_recorder.py). |
 | **Phase 5** | **Tool Expansion & Memory Persistence** | **[In Progress]** | Decorator-based [ToolRegistry](file:///d:/Work/Sherlock/Code/tools/registry.py) active with [timer.py](file:///d:/Work/Sherlock/Code/tools/timer.py) and [app_opener.py](file:///d:/Work/Sherlock/Code/tools/app_opener.py). Weather API tool is stubbed; Google Calendar and Web Search are stubs. Session memory is ephemeral. |
 | **Phase 6** | **Hardening, Latency Reduction & Streaming** | **[Not Started]** | Pipeline runs synchronously end-to-end. Audio streaming pipelines (chunked TTS/STT), async task orchestration (`asyncio`), and speech barge-in interrupt handling are not yet implemented. |
 
@@ -40,7 +40,7 @@
 - [ ] **Google Calendar Tool ([tools/calendar_tool.py](file:///d:/Work/Sherlock/Code/tools/calendar_tool.py)):** OAuth2 / CalDAV calendar scheduling integration.
 - [x] **Speech-to-Text Engine ([core/stt.py](file:///d:/Work/Sherlock/Code/core/stt.py)):** `faster-whisper` model loading and audio transcription.
 - [x] **Microphone Input Recorder ([core/audio_recorder.py](file:///d:/Work/Sherlock/Code/core/audio_recorder.py)):** `sounddevice` 16kHz 16-bit mono microphone capture into WAV files.
-- [ ] **Hands-Free Wake Word Detector ([core/wakeword.py](file:///d:/Work/Sherlock/Code/core/wakeword.py)):** Picovoice Porcupine / openWakeWord continuous frame analyzer.
+- [x] **Hands-Free Wake Word Detector ([core/wake_word.py](file:///d:/Work/Sherlock/Code/core/wake_word.py)):** openWakeWord ("sherlock") continuous 16kHz PCM stream analyzer.
 - [ ] **Session State Persistence:** Serialization of memory and settings to SQLite or local JSON.
 
 ---

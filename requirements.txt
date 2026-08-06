@@ -18,5 +18,6 @@ sounddevice
 faster-whisper
 
 # Wake Word Detection - Phase 4
-pvporcupine
+openwakeword
+onnxruntime
 
