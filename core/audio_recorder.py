@@ -203,6 +203,28 @@ class AudioRecorder:
         logger.info(f"VAD utterance captured ({len(audio_data) / self.sample_rate:.2f}s) -> {temp_file.name}")
         return temp_file.name
 
+    def record_command_with_vad(
+        self,
+        silence_duration: float = 0.9,
+        speech_threshold: float = 500.0,
+        max_duration: float = MAX_UTTERANCE_SECONDS,
+    ) -> str | None:
+        """Records a user voice command using Voice Activity Detection (VAD).
+
+        Args:
+            silence_duration (float): Trailing silence duration in seconds to stop recording.
+            speech_threshold (float): RMS energy threshold to detect voice activity.
+            max_duration (float): Maximum recording duration cap.
+
+        Returns:
+            str | None: Path to WAV file, or None if no speech was captured.
+        """
+        return self.record_vad_utterance(
+            silence_tail=silence_duration,
+            max_duration=max_duration,
+            rms_threshold=int(speech_threshold),
+        )
+
 
 class State(Enum):
     SLEEPING = auto()

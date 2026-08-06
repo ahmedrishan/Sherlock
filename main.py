@@ -1,30 +1,30 @@
-"""Application entry point and orchestration loop for Sherlock (Mini Jarvis).
+"""Application entry point and continuous hands-free execution loop for Sherlock (Mini Jarvis).
 
-Acts as the central coordinator initializing inputs, audio queues,
-the cognitive brain (Gemini GenAI ReAct Engine), tools, and TTS feedback.
+Pipeline Architecture:
+  WakeWordDetector (openWakeWord "sherlock")
+  -> AudioRecorder (Low-Latency VAD 0.9s timeout)
+  -> SpeechToText (faster-whisper)
+  -> Gemini GenAI ReAct Brain (2.5-Flash + Function Calling)
+  -> TextToSpeech Engine (ElevenLabs / Pygame)
 """
 
-import io
 import os
-import re
 import sys
-import threading
-from typing import Dict, Any, Callable
+from typing import Dict, Callable
 
-import pygame
 from google import genai
 from google.genai import types
-from elevenlabs.client import ElevenLabs
 
 import config
 from utils.logger import get_logger
 
 # Import core hardware & voice modules
+from core.wake_word import WakeWordDetector
 from core.audio_recorder import AudioRecorder
 from core.stt import SpeechToText
 from core.tts import TextToSpeech
 
-# Import brain & prompt templates
+# Import brain prompt template
 from brain.prompt_template import SHERLOCK_SYSTEM_PROMPT
 
 # Import baseline system tools
@@ -44,6 +44,7 @@ TOOL_MAP: Dict[str, Callable] = {
 
 # Global TTS helper delegate
 _tts_engine = None
+
 
 def get_tts_engine() -> TextToSpeech:
     """Returns the singleton TextToSpeech instance."""
@@ -72,7 +73,7 @@ def create_chat_session(client: genai.Client, model_name: str):
         model=model_name,
         config=types.GenerateContentConfig(
             system_instruction=SHERLOCK_SYSTEM_PROMPT,
-            temperature=0.2,  # Low variance for deterministic tool routing (Toolformer)
+            temperature=0.2,  # Low variance for deterministic tool routing
             tools=TOOLS_LIST,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
         )
@@ -138,8 +139,8 @@ def run_react_loop(chat, user_query: str) -> str:
 
 
 def main():
-    """Initializes Sherlock CLI assistant and runs the main ReAct interaction loop."""
-    logger.info("Initializing Sherlock Voice Assistant (Mini Jarvis)...")
+    """Initializes Sherlock hands-free Voice Assistant and runs continuous execution loop."""
+    logger.info("Initializing Sherlock Voice Assistant (Mini Jarvis) Phase 4 Pipeline...")
 
     gemini_key = os.getenv("GEMINI_API_KEY", config.GEMINI_API_KEY)
     if not gemini_key:
@@ -159,68 +160,96 @@ def main():
         logger.critical(f"Failed to initialize Gemini GenAI client: {e}", exc_info=True)
         sys.exit(1)
 
-    # Initialize audio hardware, STT, and TTS modules
-    recorder = AudioRecorder()
-    stt = SpeechToText()
-    tts = get_tts_engine()
+    # 1. Instantiate Pipeline Modules
+    logger.info("Instantiating pipeline hardware & speech modules...")
+    wake_word_detector = WakeWordDetector(target_word="sherlock", threshold=0.5)
+    recorder = AudioRecorder(sample_rate=16000)
+    stt_engine = SpeechToText()
+    tts_engine = get_tts_engine()
 
     print("\n==================================================")
     print("         Sherlock Voice Assistant (Mini Jarvis)")
-    print("           Brain: Gemini ReAct Engine (2.5-Flash)")
+    print("           Hands-Free Always-Listening Mode")
     print("==================================================")
-    print(f"LLM Provider:  Gemini GenAI ({model_name})")
-    print(f"TTS Provider:  {config.TTS_PROVIDER} (Pygame + ElevenLabs)")
-    print(f"STT Engine:    faster-whisper ({config.STT_MODEL_SIZE})")
-    print("Tools Loaded:  get_weather, set_timer, open_app")
+    print(f"Wake Word:    openWakeWord ('sherlock')")
+    print(f"VAD Timeout:  0.9s trailing silence cutoff")
+    print(f"STT Engine:   faster-whisper ({config.STT_MODEL_SIZE})")
+    print(f"Brain LLM:    Gemini GenAI ({model_name})")
+    print(f"TTS Provider: {config.TTS_PROVIDER} (ElevenLabs / Pygame)")
     print("==================================================")
-    print("Sherlock is ready. Type your prompt or enter 'r' / 'voice' for Push-to-Talk voice input (type 'exit' to quit).")
+    print("Sherlock is ready and listening for 'Sherlock' (Press Ctrl+C to stop)...")
     print("==================================================\n")
 
-    # Interactive CLI Loop
-    while True:
-        try:
-            user_input = input("You (text or 'r' for voice): ").strip()
-            if not user_input:
+    # 2. Hands-Free Execution Loop
+    try:
+        while True:
+            # a. Block silently on wake_word_detector.listen_for_wake_word()
+            triggered = wake_word_detector.listen_for_wake_word()
+            if not triggered:
                 continue
 
-            # Push-to-Talk Voice Input mode
-            if user_input.lower() in ["r", "rec", "voice", "speak"]:
-                try:
-                    audio_path = recorder.record_until_keypress()
-                    user_input = stt.transcribe(audio_path).strip()
-                    if not user_input:
-                        print("Sherlock: I didn't catch any speech. Please try again.")
-                        continue
-                    print(f"You (Voice STT): {user_input}")
-                except Exception as rec_err:
-                    logger.error(f"Voice recording / STT failed: {rec_err}")
-                    print(f"⚠️ [STT Error]: {rec_err}")
-                    continue
+            # b. Print wake word detection trigger
+            print("\n⚡ Wake word 'Sherlock' detected! Listening for command...")
 
-            # Exit command
-            if user_input.lower() in ["exit", "quit", "bye", "goodbye"]:
-                goodbye_msg = "Goodbye. Have a pleasant day."
-                print(f"Sherlock: {goodbye_msg}")
-                speak_text(goodbye_msg)
-                break
+            # c. Execute recorder.record_command_with_vad(silence_duration=0.9, speech_threshold=500.0)
+            wav_path = recorder.record_command_with_vad(silence_duration=0.9, speech_threshold=500.0)
 
-            # Execute ReAct decision engine
-            final_response = run_react_loop(chat_session, user_input)
-            
-            # Print answer & trigger TTS playback
+            # d. If wav_path is empty or invalid, reset back to listening
+            if not wav_path or not os.path.exists(wav_path):
+                print("Sherlock: No speech detected. Returning to sleep.")
+                print("sleeping... Listening for 'Sherlock'...\n")
+                continue
+
+            # e. Execute STT transcription
+            try:
+                user_text = stt_engine.transcribe(wav_path).strip()
+            except Exception as stt_err:
+                logger.error(f"STT transcription error: {stt_err}")
+                print(f"⚠️ [STT Error]: {stt_err}")
+                print("sleeping... Listening for 'Sherlock'...\n")
+                continue
+
+            # f. Print transcribed text
+            if not user_text:
+                print("Sherlock: I didn't catch any words. Returning to sleep.")
+                print("sleeping... Listening for 'Sherlock'...\n")
+                continue
+
+            print(f"You (Voice): {user_text}")
+
+            # g. Pass user_text into Gemini 2.5 ReAct tool loop
+            try:
+                final_response = run_react_loop(chat_session, user_text)
+            except Exception as brain_err:
+                logger.error(f"ReAct decision engine error: {brain_err}")
+                final_response = "I encountered an issue processing your request."
+
+            # h. Pass Gemini's final text response to TTS engine
             print(f"Sherlock: {final_response}")
             speak_text(final_response)
 
-        except KeyboardInterrupt:
-            goodbye_msg = "Goodbye. Have a pleasant day."
-            print(f"\nSherlock: {goodbye_msg}")
-            speak_text(goodbye_msg)
-            break
-        except Exception as e:
-            logger.error(f"Error in CLI interaction loop: {e}", exc_info=True)
-            print(f"⚠️ [System Error]: {e}")
+            # i. Print sleeping notification and reset loop
+            print("sleeping... Listening for 'Sherlock'...\n")
+
+    except KeyboardInterrupt:
+        print("\n\nSherlock: Goodbye. Shutting down hands-free listener...")
+        logger.info("KeyboardInterrupt received. Initiating graceful shutdown...")
+    except Exception as e:
+        logger.critical(f"Unhandled exception in hands-free loop: {e}", exc_info=True)
+        print(f"\n⚠️ [System Crash]: {e}")
+    finally:
+        # 3. Clean Exit & Graceful Cleanup
+        logger.info("Cleaning up hands-free audio stream resources...")
+        try:
+            recorder.stop_recording()
+        except Exception:
+            pass
+        try:
+            wake_word_detector.cleanup()
+        except Exception:
+            pass
+        logger.info("Sherlock Voice Assistant stopped cleanly.")
 
 
 if __name__ == "__main__":
     main()
-
