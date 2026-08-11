@@ -170,7 +170,9 @@ def main():
 
     # 1. Instantiate Pipeline Hardware & Speech Modules
     logger.info("Instantiating pipeline hardware & speech modules...")
-    wake_word_detector = WakeWordDetector(target_word="sherlock", threshold=0.5)
+    target_word = getattr(config, "WAKE_WORD_MODEL", "sherlock")
+    threshold = getattr(config, "WAKE_WORD_THRESHOLD", 0.25)
+    wake_word_detector = WakeWordDetector(target_word=target_word, threshold=threshold)
     recorder = AudioRecorder(sample_rate=16000)
     stt_engine = SpeechToText()
     tts_engine = get_tts_engine()
@@ -179,14 +181,14 @@ def main():
     print("         Sherlock Voice Assistant (Mini Jarvis)")
     print("           Hands-Free Always-Listening Mode")
     print("==================================================")
-    print(f"Wake Word:    openWakeWord ('sherlock')")
+    print(f"Wake Word:    openWakeWord ('{target_word}')")
     print(f"VAD Timeout:  0.9s trailing silence cutoff")
     print(f"STT Engine:   faster-whisper ({config.STT_MODEL_SIZE})")
     print(f"Brain LLM:    Gemini GenAI ({model_name})")
     print(f"Memory DB:    data/memory.db ({len(user_facts)} facts loaded)")
     print(f"TTS Provider: {config.TTS_PROVIDER} (ElevenLabs / Pygame)")
     print("==================================================")
-    print("Sherlock is ready and listening for 'Sherlock' (Press Ctrl+C to stop)...")
+    print(f"Sherlock is ready and listening for '{target_word}' (Press Ctrl+C to stop)...")
     print("==================================================\n")
 
     # 2. Hands-Free Execution Loop
@@ -198,7 +200,7 @@ def main():
                 continue
 
             # b. Print wake word detection trigger
-            print("\n⚡ Wake word 'Sherlock' detected! Listening for command...")
+            print(f"\n⚡ Wake word '{target_word}' detected! Listening for command...")
 
             # c. Execute recorder.record_command_with_vad(silence_duration=0.9, speech_threshold=500.0)
             wav_path = recorder.record_command_with_vad(silence_duration=0.9, speech_threshold=500.0)

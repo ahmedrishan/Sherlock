@@ -40,7 +40,7 @@ AUDIO_CHANNELS = int(os.getenv("AUDIO_CHANNELS", "1"))
 AUDIO_CHUNK_SIZE = int(os.getenv("AUDIO_CHUNK_SIZE", "1024"))
 
 # Wake Word Settings (openWakeWord)
-WAKE_WORD_MODEL = os.getenv("WAKE_WORD_MODEL", "sherlock")
+WAKE_WORD_MODEL = os.getenv("WAKE_WORD_MODEL", "hey_jarvis")
 WAKE_WORD_THRESHOLD = float(os.getenv("WAKE_WORD_THRESHOLD", "0.5"))
 WAKE_WORD_MODEL_PATH = os.getenv("WAKE_WORD_MODEL_PATH", "")
 

@@ -84,7 +84,6 @@ class WakeWordDetector:
         candidates = [
             os.path.join(config.BASE_DIR, "models", f"{self.target_word}.onnx"),
             os.path.join(config.BASE_DIR, f"{self.target_word}.onnx"),
-            os.path.join(config.BASE_DIR, "models", "sherlock.onnx"),
         ]
         for path in candidates:
             if os.path.exists(path):
@@ -111,6 +110,11 @@ class WakeWordDetector:
                     # Feed frame to openWakeWord
                     prediction = self.model.predict(audio_frame)
                     score = self._extract_score(prediction)
+
+                    if score >= 0.10 and score < self.threshold:
+                        logger.debug(
+                            f"Wake word '{self.target_word}' partial activation: {score:.3f} (Threshold: {self.threshold})"
+                        )
 
                     if score >= self.threshold:
                         logger.info(
