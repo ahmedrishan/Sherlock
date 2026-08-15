@@ -43,7 +43,7 @@ ACTIVE_CONVERSATION_TIMEOUT = float(os.getenv("ACTIVE_CONVERSATION_TIMEOUT", "15
 # Wake Word Settings (openWakeWord)
 WAKE_WORD_MODEL = os.getenv("WAKE_WORD_MODEL", "sherlock")
 BACKUP_WAKE_WORD_MODEL = os.getenv("BACKUP_WAKE_WORD_MODEL", "hey_jarvis")
-WAKE_WORD_THRESHOLD = float(os.getenv("WAKE_WORD_THRESHOLD", "0.25"))
+WAKE_WORD_THRESHOLD = float(os.getenv("WAKE_WORD_THRESHOLD", "0.5"))
 WAKE_WORD_MODEL_PATH = os.getenv("WAKE_WORD_MODEL_PATH", "")
 
 # Speech to Text Settings (faster-whisper)
