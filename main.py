@@ -190,58 +190,78 @@ def main():
     print(f"Sherlock is ready and listening for '{target_word}' / '{backup_word}' (Press Ctrl+C to stop)...")
     print("==================================================\n")
 
-    # 2. Hands-Free Execution Loop
+    # 2. Hands-Free Execution Loop (Active Conversation Window Mode)
+    active_timeout = getattr(config, "ACTIVE_CONVERSATION_TIMEOUT", 15.0)
+    in_active_session = False
+
     try:
         while True:
-            # a. Block silently on wake_word_detector.listen_for_wake_word()
-            triggered = wake_word_detector.listen_for_wake_word()
-            if not triggered:
-                continue
+            # a. If not in active session, wait for wake word trigger
+            if not in_active_session:
+                triggered = wake_word_detector.listen_for_wake_word()
+                if not triggered:
+                    continue
+                print(f"\n⚡ Wake word '{target_word}' detected! Listening for command...")
+                in_active_session = True
+            else:
+                print(f"\n💬 Sherlock active ({int(active_timeout)}s window)... Listening for follow-up command...")
 
-            # b. Print wake word detection trigger
-            print(f"\n⚡ Wake word '{target_word}' detected! Listening for command...")
+            # b. Record command using VAD with active inactivity timeout
+            wav_path = recorder.record_command_with_vad(
+                silence_duration=0.9,
+                speech_threshold=500.0,
+                inactivity_timeout=active_timeout if in_active_session else None,
+            )
 
-            # c. Execute recorder.record_command_with_vad(silence_duration=0.9, speech_threshold=500.0)
-            wav_path = recorder.record_command_with_vad(silence_duration=0.9, speech_threshold=500.0)
-
-            # d. If wav_path is empty or invalid, reset back to listening
+            # c. Handle inactivity timeout / empty recording
             if not wav_path or not os.path.exists(wav_path):
-                print("Sherlock: No speech detected. Returning to sleep.")
-                print("sleeping... Listening for 'Sherlock'...\n")
+                if in_active_session:
+                    print(f"😴 {int(active_timeout)}s inactivity timeout reached. Sherlock returning to sleep mode.")
+                    print(f"sleeping... Listening for wake word ('{target_word}')...\n")
+                    in_active_session = False
                 continue
 
-            # e. Execute STT transcription
+            # d. Transcribe audio input via faster-whisper
             try:
                 user_text = stt_engine.transcribe(wav_path).strip()
             except Exception as stt_err:
                 logger.error(f"STT transcription error: {stt_err}")
                 print(f"⚠️ [STT Error]: {stt_err}")
-                print("sleeping... Listening for 'Sherlock'...\n")
+                print(f"sleeping... Listening for wake word ('{target_word}')...\n")
+                in_active_session = False
                 continue
 
-            # f. Print transcribed text & record user turn
+            # e. Handle empty transcription
             if not user_text:
-                print("Sherlock: I didn't catch any words. Returning to sleep.")
-                print("sleeping... Listening for 'Sherlock'...\n")
+                print("Sherlock: I didn't catch any words.")
+                continue
+
+            # f. Check for explicit exit/sleep phrases
+            if any(term in user_text.lower() for term in ["stop listening", "go to sleep", "goodbye", "sleep"]):
+                print(f"You (Voice): {user_text}")
+                print("Sherlock: Goodbye! Going to sleep.")
+                speak_text("Goodbye! Going to sleep.")
+                in_active_session = False
+                print(f"sleeping... Listening for wake word ('{target_word}')...\n")
                 continue
 
             print(f"You (Voice): {user_text}")
             memory.add_turn("user", user_text)
 
-            # g. Pass user_text into Gemini 2.5 ReAct tool loop
+            # g. Execute ReAct brain loop
             try:
                 final_response = run_react_loop(chat_session, user_text)
             except Exception as brain_err:
                 logger.error(f"ReAct decision engine error: {brain_err}")
                 final_response = "I encountered an issue processing your request."
 
-            # h. Record assistant turn & pass Gemini's final text response to TTS engine
+            # h. Record assistant turn & speak response back to user out loud
             memory.add_turn("assistant", final_response)
             print(f"Sherlock: {final_response}")
             speak_text(final_response)
 
-            # i. Print sleeping notification and reset loop
-            print("sleeping... Listening for 'Sherlock'...\n")
+            # i. Keep active conversation window refreshed
+            print(f"⚡ Response completed. Sherlock remains active for {int(active_timeout)}s follow-up...\n")
 
     except KeyboardInterrupt:
         print("\n\nSherlock: Goodbye. Shutting down hands-free listener...")

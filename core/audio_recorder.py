@@ -145,10 +145,11 @@ class AudioRecorder:
         silence_tail: float = SILENCE_TAIL_SECONDS,
         max_duration: float = MAX_UTTERANCE_SECONDS,
         rms_threshold: int = VOICE_RMS_THRESHOLD,
+        inactivity_timeout: float | None = None,
     ) -> str | None:
         """Records an utterance dynamically using Voice Activity Detection (VAD).
 
-        Waits for voice activity, captures audio until trailing silence or max duration,
+        Waits for voice activity, captures audio until trailing silence, max duration, or inactivity timeout,
         and saves to a temporary WAV file.
 
         Returns:
@@ -159,9 +160,15 @@ class AudioRecorder:
         speaking = False
         silence_start = None
         utterance_start = None
+        listen_start = time.time()
 
         try:
             while True:
+                now = time.time()
+                if not speaking and inactivity_timeout is not None and (now - listen_start) >= inactivity_timeout:
+                    logger.info(f"VAD: Inactivity timeout ({inactivity_timeout}s) reached with no speech.")
+                    break
+
                 chunk = self.read_chunk(timeout=POLL_TIMEOUT)
                 if not chunk:
                     if speaking:
@@ -171,7 +178,6 @@ class AudioRecorder:
                 samples = np.frombuffer(chunk, dtype=np.int16)
                 rms = np.sqrt(np.mean(samples.astype(np.float64) ** 2)) if samples.size > 0 else 0.0
                 is_voice = rms >= rms_threshold
-                now = time.time()
 
                 if is_voice:
                     if not speaking:
@@ -208,6 +214,7 @@ class AudioRecorder:
         silence_duration: float = 0.9,
         speech_threshold: float = 500.0,
         max_duration: float = MAX_UTTERANCE_SECONDS,
+        inactivity_timeout: float | None = None,
     ) -> str | None:
         """Records a user voice command using Voice Activity Detection (VAD).
 
@@ -215,6 +222,7 @@ class AudioRecorder:
             silence_duration (float): Trailing silence duration in seconds to stop recording.
             speech_threshold (float): RMS energy threshold to detect voice activity.
             max_duration (float): Maximum recording duration cap.
+            inactivity_timeout (float | None): Optional timeout in seconds to wait for initial speech.
 
         Returns:
             str | None: Path to WAV file, or None if no speech was captured.
@@ -223,6 +231,7 @@ class AudioRecorder:
             silence_tail=silence_duration,
             max_duration=max_duration,
             rms_threshold=int(speech_threshold),
+            inactivity_timeout=inactivity_timeout,
         )
 
 

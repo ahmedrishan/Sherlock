@@ -34,10 +34,11 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.7"))
 
-# Audio Recording Settings
+# Audio Recording & Active Conversation Settings
 AUDIO_SAMPLE_RATE = int(os.getenv("AUDIO_SAMPLE_RATE", "16000"))
 AUDIO_CHANNELS = int(os.getenv("AUDIO_CHANNELS", "1"))
 AUDIO_CHUNK_SIZE = int(os.getenv("AUDIO_CHUNK_SIZE", "1024"))
+ACTIVE_CONVERSATION_TIMEOUT = float(os.getenv("ACTIVE_CONVERSATION_TIMEOUT", "15.0"))
 
 # Wake Word Settings (openWakeWord)
 WAKE_WORD_MODEL = os.getenv("WAKE_WORD_MODEL", "sherlock")
