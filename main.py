@@ -110,8 +110,8 @@ def run_react_loop(chat, user_query: str) -> str:
             func_args = call.args or {}
 
             # Log ReAct Step: Tool requested & parameters passed
-            logger.info(f"🤖 [ReAct Step {step}] Tool requested: '{func_name}' with args: {func_args}")
-            print(f"🤖 [ReAct Step {step}] Tool: '{func_name}' | Args: {func_args}")
+            logger.info(f"[ReAct Step {step}] Tool requested: '{func_name}' with args: {func_args}")
+            print(f"[ReAct Step {step}] Tool: '{func_name}' | Args: {func_args}")
 
             # Execute tool locally
             tool_fn = TOOL_MAP.get(func_name)
@@ -126,8 +126,8 @@ def run_react_loop(chat, user_query: str) -> str:
                 observation = f"Error: Tool '{func_name}' is not registered."
 
             # Log ReAct Step: Observation returned
-            logger.info(f"🔍 [ReAct Step {step}] Observation returned: {observation}")
-            print(f"🔍 [ReAct Step {step}] Observation: {observation}")
+            logger.info(f"[ReAct Step {step}] Observation returned: {observation}")
+            print(f"[ReAct Step {step}] Observation: {observation}")
 
             # Feed observation back to Gemini chat session
             response_part = types.Part.from_function_response(
@@ -252,8 +252,13 @@ def main():
             try:
                 final_response = run_react_loop(chat_session, user_text)
             except Exception as brain_err:
-                logger.error(f"ReAct decision engine error: {brain_err}")
-                final_response = "I encountered an issue processing your request."
+                err_msg = str(brain_err)
+                if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+                    logger.warning(f"Gemini API daily/free-tier quota reached: {brain_err}")
+                    final_response = "I have temporarily reached my Gemini API free tier request limit. Please wait a moment before trying again."
+                else:
+                    logger.error(f"ReAct decision engine error: {brain_err}")
+                    final_response = "I encountered an issue processing your request."
 
             # h. Record assistant turn & speak response back to user out loud
             memory.add_turn("assistant", final_response)
