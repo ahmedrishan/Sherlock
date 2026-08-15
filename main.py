@@ -171,8 +171,9 @@ def main():
     # 1. Instantiate Pipeline Hardware & Speech Modules
     logger.info("Instantiating pipeline hardware & speech modules...")
     target_word = getattr(config, "WAKE_WORD_MODEL", "sherlock")
+    backup_word = getattr(config, "BACKUP_WAKE_WORD_MODEL", "hey_jarvis")
     threshold = getattr(config, "WAKE_WORD_THRESHOLD", 0.25)
-    wake_word_detector = WakeWordDetector(target_word=target_word, threshold=threshold)
+    wake_word_detector = WakeWordDetector(target_word=target_word, backup_word=backup_word, threshold=threshold)
     recorder = AudioRecorder(sample_rate=16000)
     stt_engine = SpeechToText()
     tts_engine = get_tts_engine()
@@ -181,14 +182,14 @@ def main():
     print("         Sherlock Voice Assistant (Mini Jarvis)")
     print("           Hands-Free Always-Listening Mode")
     print("==================================================")
-    print(f"Wake Word:    openWakeWord ('{target_word}')")
+    print(f"Wake Word:    openWakeWord ('{target_word}' | Backup: '{backup_word}')")
     print(f"VAD Timeout:  0.9s trailing silence cutoff")
     print(f"STT Engine:   faster-whisper ({config.STT_MODEL_SIZE})")
     print(f"Brain LLM:    Gemini GenAI ({model_name})")
     print(f"Memory DB:    data/memory.db ({len(user_facts)} facts loaded)")
     print(f"TTS Provider: {config.TTS_PROVIDER} (ElevenLabs / Pygame)")
     print("==================================================")
-    print(f"Sherlock is ready and listening for '{target_word}' (Press Ctrl+C to stop)...")
+    print(f"Sherlock is ready and listening for '{target_word}' / '{backup_word}' (Press Ctrl+C to stop)...")
     print("==================================================\n")
 
     # 2. Hands-Free Execution Loop

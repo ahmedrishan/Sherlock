@@ -6,6 +6,8 @@ openWakeWord reference built-in models ('hey_jarvis', 'alexa') for direct qualit
 
 import sys
 import time
+from pathlib import Path
+
 import sounddevice as sd
 import numpy as np
 import openwakeword
@@ -27,7 +29,8 @@ def main():
     print("      Sherlock ONNX Wake-Word Real-Time Quality Tester")
     print("=" * 65)
 
-    model_path = "models/sherlock.onnx"
+    repo_root = Path(__file__).resolve().parents[1]
+    model_path = str(repo_root / "models" / "sherlock.onnx")
     models_to_load = [model_path, "hey_jarvis", "alexa"]
 
     print(f"Loading target custom model: {model_path}")
