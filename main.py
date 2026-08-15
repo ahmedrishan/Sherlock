@@ -4,7 +4,7 @@ Pipeline Architecture:
   WakeWordDetector (openWakeWord "sherlock")
   -> AudioRecorder (Low-Latency VAD 0.9s timeout)
   -> SpeechToText (faster-whisper)
-  -> Gemini GenAI ReAct Brain (2.5-Flash + Memory & Function Calling)
+  -> Gemini GenAI ReAct Brain (3.6-Flash + Memory & Function Calling)
   -> TextToSpeech Engine (ElevenLabs / Pygame)
 """
 
@@ -151,9 +151,7 @@ def main():
         print("❌ Error: GEMINI_API_KEY is missing. Please add it to your .env file.")
         sys.exit(1)
 
-    model_name = getattr(config, "GEMINI_MODEL", "gemini-2.5-flash")
-    if not model_name or "1.5" in model_name:
-        model_name = "gemini-2.5-flash"
+    model_name = getattr(config, "GEMINI_MODEL", "gemini-3.6-flash")
 
     # Instantiate SQLite Memory Manager and fetch long-term user facts
     memory = MemoryManager()
