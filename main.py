@@ -32,15 +32,17 @@ from brain.prompt_template import get_system_instruction
 from tools.weather import get_weather
 from tools.timer import set_timer
 from tools.app_opener import open_app
+from tools.memory_tool import remember_fact
 
 logger = get_logger(__name__)
 
 # Register baseline tool mapping
-TOOLS_LIST = [get_weather, set_timer, open_app]
+TOOLS_LIST = [get_weather, set_timer, open_app, remember_fact]
 TOOL_MAP: Dict[str, Callable] = {
     "get_weather": get_weather,
     "set_timer": set_timer,
     "open_app": open_app,
+    "remember_fact": remember_fact,
 }
 
 # Global TTS helper delegate
