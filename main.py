@@ -9,6 +9,7 @@ Pipeline Architecture:
 """
 
 import os
+import random
 import sys
 from typing import Dict, Callable
 
@@ -60,6 +61,21 @@ def get_tts_engine() -> TextToSpeech:
 def speak_text(text: str):
     """Converts response text to speech and plays audio using modular TTS engine."""
     get_tts_engine().speak(text)
+
+
+def get_wake_greeting(user_name: str | None = None) -> str:
+    """Returns a randomized Sherlock greeting upon wake word detection."""
+    name_suffix = f", {user_name}" if user_name else ""
+    greetings = [
+        f"At your service{name_suffix}.",
+        f"Yes{name_suffix}? How may I assist you?",
+        "Listening. What do you need?",
+        f"Welcome back{name_suffix}.",
+        f"I am here boss",
+        f"Ready when you are{name_suffix}.",
+        f"Good day{name_suffix}. I am listening.",
+    ]
+    return random.choice(greetings)
 
 
 def create_chat_session(client: genai.Client, model_name: str, facts: dict | None = None):
@@ -203,8 +219,11 @@ def main():
                 triggered = wake_word_detector.listen_for_wake_word()
                 if not triggered:
                     continue
-                print(f"\n⚡ Wake word '{target_word}' detected! Listening for command...")
                 in_active_session = True
+                greeting = get_wake_greeting(user_facts.get("name"))
+                print(f"\n⚡ Wake word '{target_word}' detected!")
+                print(f"Sherlock: {greeting}")
+                speak_text(greeting)
             else:
                 print(f"\n💬 Sherlock active ({int(active_timeout)}s window)... Listening for follow-up command...")
 
