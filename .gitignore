@@ -57,3 +57,6 @@ Desktop.ini
 
 # Logs
 *.log
+
+data/memory.db
+data/memory.json

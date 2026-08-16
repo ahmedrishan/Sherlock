@@ -9,13 +9,26 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Mapping of common aliases to system binary names or commands
+# Mapping of common aliases to system binary names, URI schemes, or commands
 WINDOWS_APPS = {
     "notepad": "notepad.exe",
     "calculator": "calc.exe",
+    "calc": "calc.exe",
     "explorer": "explorer.exe",
     "chrome": "chrome.exe",
     "edge": "msedge.exe",
+    "code": "code",
+    "vscode": "code",
+    "vs code": "code",
+    "visual studio code": "code",
+    "settings": "start ms-settings:",
+    "windows settings": "start ms-settings:",
+    "spotify": "start spotify:",
+    "steam": "start steam:",
+    "discord": "start discord:",
+    "task manager": "taskmgr.exe",
+    "taskmgr": "taskmgr.exe",
+    "control panel": "control.exe",
 }
 
 def open_app(app_name: str) -> str:
