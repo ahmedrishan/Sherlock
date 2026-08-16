@@ -69,14 +69,14 @@ def play_spotify(query: str = "") -> str:
             # Wait 2 seconds for Spotify to fetch search results over network & render UI
             time.sleep(2.0)
 
-            # Bring Spotify window to foreground and send Tab + Space to hit top result play button
+            # Bring Spotify window to foreground and send DOWN arrow + Enter to play Top Result
             ps_code = """
             $ws = New-Object -ComObject WScript.Shell
             if ($ws.AppActivate('Spotify')) {
-                Start-Sleep -Milliseconds 400
-                $ws.SendKeys('{TAB}')
+                Start-Sleep -Milliseconds 500
+                $ws.SendKeys('{DOWN}')
                 Start-Sleep -Milliseconds 300
-                $ws.SendKeys(' ')
+                $ws.SendKeys('~')
             }
             """
             subprocess.run(["powershell", "-NoProfile", "-Command", ps_code], capture_output=True, text=True)

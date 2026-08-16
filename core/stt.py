@@ -60,7 +60,13 @@ class SpeechToText:
         logger.info(f"Transcribing audio file: {audio_path}")
 
         assert self.model is not None
-        segments, _ = self.model.transcribe(audio_path, beam_size=5)
+        initial_prompt = "Sherlock voice assistant commands: play song on Spotify, open app, set timer, weather, Rishan, Trivandrum, Malappuram."
+        segments, _ = self.model.transcribe(
+            audio_path,
+            beam_size=5,
+            language="en",
+            initial_prompt=initial_prompt,
+        )
         text = " ".join(segment.text.strip() for segment in segments).strip()
 
         logger.info(f"Transcribed output: '{text}'")
