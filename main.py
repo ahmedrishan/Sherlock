@@ -34,16 +34,18 @@ from tools.weather import get_weather
 from tools.timer import set_timer
 from tools.app_opener import open_app
 from tools.memory_tool import remember_fact
+from tools.spotify_tool import play_spotify
 
 logger = get_logger(__name__)
 
 # Register baseline tool mapping
-TOOLS_LIST = [get_weather, set_timer, open_app, remember_fact]
+TOOLS_LIST = [get_weather, set_timer, open_app, remember_fact, play_spotify]
 TOOL_MAP: Dict[str, Callable] = {
     "get_weather": get_weather,
     "set_timer": set_timer,
     "open_app": open_app,
     "remember_fact": remember_fact,
+    "play_spotify": play_spotify,
 }
 
 # Global TTS helper delegate
