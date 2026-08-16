@@ -58,5 +58,41 @@ def open_app(app_name: str) -> str:
         logger.error(f"Failed to launch '{app_name}' using command '{target_cmd}': {e}")
         return f"Failed to open '{app_name}'. Error details: {str(e)}"
 
+def close_app(app_name: str) -> str:
+    """Closes or terminates a running application (e.g. 'spotify', 'chrome', 'notepad', 'calculator', 'vs code').
+    Use this tool ONLY when the user explicitly asks to 'close spotify', 'terminate spotify', 'close app', or 'exit app'.
+
+    Args:
+        app_name (str): Name of the application to close (e.g., 'spotify', 'chrome', 'notepad').
+
+    Returns:
+        str: Confirmation message.
+    """
+    logger.info(f"close_app tool invoked for: '{app_name}'")
+    alias = app_name.lower().strip()
+
+    proc_map = {
+        "spotify": "Spotify.exe",
+        "chrome": "chrome.exe",
+        "notepad": "notepad.exe",
+        "calculator": "calc.exe",
+        "calc": "calc.exe",
+        "edge": "msedge.exe",
+        "code": "Code.exe",
+        "vscode": "Code.exe",
+        "vs code": "Code.exe",
+        "discord": "Discord.exe",
+    }
+
+    proc_name = proc_map.get(alias, f"{alias}.exe")
+    try:
+        subprocess.run(f"taskkill /IM {proc_name} /F", shell=True, capture_output=True)
+        logger.info(f"Terminated process {proc_name}.")
+        return f"Closed {app_name} successfully."
+    except Exception as e:
+        logger.error(f"Failed to close {app_name}: {e}")
+        return f"Failed to close {app_name}: {e}"
+
+
 # Alias for backward compatibility
 launch_app = open_app
