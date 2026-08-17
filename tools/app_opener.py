@@ -26,6 +26,7 @@ WINDOWS_APPS = {
     "spotify": "start spotify:",
     "steam": "start steam:",
     "discord": "start discord:",
+    "github": "start https://github.com",
     "task manager": "taskmgr.exe",
     "taskmgr": "taskmgr.exe",
     "control panel": "control.exe",
@@ -59,17 +60,33 @@ def open_app(app_name: str) -> str:
         return f"Failed to open '{app_name}'. Error details: {str(e)}"
 
 def close_app(app_name: str) -> str:
-    """Closes or terminates a running application (e.g. 'spotify', 'chrome', 'notepad', 'calculator', 'vs code').
-    Use this tool ONLY when the user explicitly asks to 'close spotify', 'terminate spotify', 'close app', or 'exit app'.
+    """Closes or terminates a running application or browser tab (e.g. 'github', 'spotify', 'chrome', 'notepad', 'calculator', 'vs code').
+    Use this tool ONLY when the user explicitly asks to 'close github', 'close spotify', 'terminate spotify', 'close app', or 'exit app'.
 
     Args:
-        app_name (str): Name of the application to close (e.g., 'spotify', 'chrome', 'notepad').
+        app_name (str): Name of the application to close (e.g., 'github', 'spotify', 'chrome', 'notepad').
 
     Returns:
         str: Confirmation message.
     """
     logger.info(f"close_app tool invoked for: '{app_name}'")
     alias = app_name.lower().strip()
+
+    # Web URL applications run as browser tabs (send Ctrl+W)
+    if alias in ["github", "web", "browser tab", "tab"]:
+        try:
+            ps_code = """
+            $ws = New-Object -ComObject WScript.Shell
+            if ($ws.AppActivate('GitHub') -or $ws.AppActivate('Chrome') -or $ws.AppActivate('Edge')) {
+                Start-Sleep -Milliseconds 300
+                $ws.SendKeys('^w')
+            }
+            """
+            subprocess.run(["powershell", "-NoProfile", "-Command", ps_code], capture_output=True, text=True)
+            logger.info("Sent Ctrl+W to close active browser tab.")
+            return f"Closed {app_name} tab successfully."
+        except Exception as e:
+            logger.error(f"Failed to close tab for {app_name}: {e}")
 
     proc_map = {
         "spotify": "Spotify.exe",

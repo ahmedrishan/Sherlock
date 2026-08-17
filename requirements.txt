@@ -4,6 +4,7 @@ requests
 numpy
 scipy
 pygame
+feedparser
 
 # LLM Brain & Function Calling (Phase 1)
 google-genai

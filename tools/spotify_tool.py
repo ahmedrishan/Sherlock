@@ -59,6 +59,14 @@ def play_spotify(query: str = "") -> str:
 
     clean_q = clean_q.strip(" '\".")
 
+    # Phonetic corrections map for common misheard names
+    corrections = {
+        "nairam": "neram",
+        "nayram": "neram",
+        "star boy": "starboy",
+    }
+    clean_q = corrections.get(clean_q, clean_q)
+
     try:
         if clean_q:
             # Search and open Spotify to target song/artist

@@ -4,6 +4,7 @@ Converts recorded audio payloads into transcribed text queries for brain process
 Model loading is deferred until first use, so application startup stays fast.
 """
 
+import os
 import tempfile
 
 import scipy.io.wavfile as wav
@@ -11,6 +12,9 @@ import numpy as np
 
 import config
 from utils.logger import get_logger
+
+# Suppress Hugging Face symlink warning on Windows
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
 logger = get_logger(__name__)
 
@@ -60,7 +64,7 @@ class SpeechToText:
         logger.info(f"Transcribing audio file: {audio_path}")
 
         assert self.model is not None
-        initial_prompt = "Sherlock voice assistant commands: play song on Spotify, open app, set timer, weather, Rishan, Trivandrum, Malappuram."
+        initial_prompt = "Sherlock voice assistant commands: play song on Spotify, open app, set timer, weather, Rishan, Trivandrum, Malappuram, Neram, Despacito, Paris, Starboy."
         segments, _ = self.model.transcribe(
             audio_path,
             beam_size=5,
