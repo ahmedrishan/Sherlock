@@ -92,7 +92,8 @@ class LLMClient:
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=system,
-                    temperature=config.TEMPERATURE
+                    temperature=config.TEMPERATURE,
+                    tools=[types.Tool(google_search=types.GoogleSearch())]
                 )
             )
             return response.text

@@ -36,11 +36,17 @@ from tools.app_opener import open_app, close_app
 from tools.memory_tool import remember_fact
 from tools.spotify_tool import play_spotify, pause_spotify
 from tools.rss_tool import fetch_rss_feed
+from tools.sports import get_live_score, get_standings, get_upcoming_matches
 
 logger = get_logger(__name__)
 
 # Register baseline tool mapping
-TOOLS_LIST = [get_weather, set_timer, open_app, close_app, remember_fact, play_spotify, pause_spotify, fetch_rss_feed]
+TOOLS_LIST = [
+    get_weather, set_timer, open_app, close_app,
+    remember_fact, play_spotify, pause_spotify,
+    fetch_rss_feed, get_live_score, get_standings,
+    get_upcoming_matches
+]
 TOOL_MAP: Dict[str, Callable] = {
     "get_weather": get_weather,
     "set_timer": set_timer,
@@ -50,6 +56,9 @@ TOOL_MAP: Dict[str, Callable] = {
     "play_spotify": play_spotify,
     "pause_spotify": pause_spotify,
     "fetch_rss_feed": fetch_rss_feed,
+    "get_live_score": get_live_score,
+    "get_standings": get_standings,
+    "get_upcoming_matches": get_upcoming_matches,
 }
 
 # Global TTS helper delegate
